@@ -1,97 +1,80 @@
-# Ollama Pro CLI (Interceptable, Production-Grade)
+# Ollama CLI Chat (Interceptable)
 
-A hardened CLI chat client for Ollama endpoints with a plugin interception pipeline designed for prompt governance, redaction, and request rewriting before network send.
+This repo now contains a production-ready Python CLI chat client for an Ollama endpoint on your LAN, with a **first-class prompt interception layer** so you can inspect and mutate payloads before they are sent.
 
-## Why this is production-grade
+## Why this approach
 
-- **Plugin pipeline** with clear lifecycle hooks:
-  - `pre_send(payload, context)`
-  - `post_receive(response_json, context)`
-- **Retry strategy** with linear backoff for transient failures.
-- **Streaming support** for real-time token output (`stream=true`) and non-stream mode.
-- **Operational controls**: model switching, history management, save/export, transcript logging.
-- **Backward compatibility** with legacy `intercept_payload(payload)` hook.
-- **Zero external dependencies** (Python standard library only).
+Open-source UIs/CLIs exist, but most hide request construction inside framework callbacks, making prompt interception awkward. This tool keeps interception explicit and easy:
+
+- Payload is assembled in one place.
+- `intercept_payload(payload)` is called on every turn.
+- You can change model, messages, options, routing, tags, etc. before the HTTP request.
 
 ## Files
 
-- `chat_cli.py` — CLI runtime, HTTP client, retry logic, interceptor loader.
-- `interceptor_example.py` — ready-to-use plugin for outbound/inbound modifications.
+- `chat_cli.py` — interactive CLI chat app.
+- `interceptor_example.py` — example hook you can customize.
 
 ## Quick start
 
 ```bash
 python3 chat_cli.py \
   --endpoint http://192.168.1.25:11434/api/chat \
-  --model llama3.1 \
-  --interceptor interceptor_example.py
+  --model llama3.1
 ```
 
-## Interceptor API
+Optional environment variables:
 
-Create a file and pass it using `--interceptor <file.py>` (repeatable).
-
-```python
-def pre_send(payload: dict, context) -> dict:
-    # mutate outgoing request payload
-    return payload
-
-def post_receive(response_json: dict, context) -> dict:
-    # mutate parsed response before session state update
-    return response_json
-```
-
-`context` includes:
-- `turn_index`
-- `started_at`
-- `endpoint`
-
-Legacy mode is still supported:
-
-```python
-def intercept_payload(payload: dict) -> dict:
-    return payload
-```
-
-## CLI options
-
-```text
---endpoint URL
---model NAME
---timeout SECONDS
---retries N
---retry-backoff SECONDS
---interceptor PATH   (repeatable)
---system TEXT
---stream / --no-stream
---transcript PATH
---no-transcript
--v / --verbose
-```
-
-Environment variables:
 - `OLLAMA_ENDPOINT`
 - `OLLAMA_MODEL`
 - `OLLAMA_TIMEOUT`
-- `OLLAMA_RETRIES`
-- `OLLAMA_RETRY_BACKOFF`
+- `OLLAMA_INTERCEPTOR`
 - `OLLAMA_SYSTEM_PROMPT`
 - `OLLAMA_TRANSCRIPT`
 
-## REPL commands
+## Interception API
+
+Point `--interceptor` at a Python file that defines:
+
+```python
+def intercept_payload(payload: dict) -> dict:
+    # modify payload
+    return payload
+```
+
+`payload` starts as:
+
+```json
+{
+  "model": "llama3.1",
+  "messages": [
+    {"role": "system", "content": "..."},
+    {"role": "user", "content": "..."}
+  ],
+  "stream": false
+}
+```
+
+You can:
+
+- Rewrite or filter prompts.
+- Insert policy/system messages.
+- Redact secrets before send.
+- Adjust `model`/`options` dynamically.
+
+## CLI commands
+
+Inside the REPL:
 
 - `/help`
 - `/history`
-- `/system <prompt>`
-- `/model <name>`
 - `/pop`
+- `/system <prompt>`
 - `/save [path]`
 - `/quit`
 
-## Recommended deployment pattern
+## Notes
 
-For a LAN Ollama server:
-1. Keep model/policy routing in `pre_send` plugin(s).
-2. Add redaction before send and provenance tags after receive.
-3. Keep transcripts enabled and ship JSONL logs to your SIEM or data lake.
-4. Run with `--verbose` in staging and disable in prod.
+- Uses the Ollama `/api/chat` endpoint.
+- Transcript logging defaults to `chat_transcript.jsonl` (disable with `--no-transcript`).
+- Works with any Ollama-reachable host on your local network.
