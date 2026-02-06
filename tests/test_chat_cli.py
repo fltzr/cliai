@@ -1,8 +1,7 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
-
-from click.testing import CliRunner
 
 import chat_cli
 
@@ -32,7 +31,7 @@ class InterceptorPipelineTests(unittest.TestCase):
                 "  payload['model'] = 'x'\n"
                 "  return payload\n"
                 "def post_receive(response_json, context):\n"
-                "  response_json['message']['content'] += '!' \n"
+                "  response_json['message']['content'] += '!'\n"
                 "  return response_json\n",
                 encoding="utf-8",
             )
@@ -44,12 +43,19 @@ class InterceptorPipelineTests(unittest.TestCase):
             self.assertEqual(post["message"]["content"], "ok!")
 
 
-class CliTests(unittest.TestCase):
-    def test_help(self):
-        runner = CliRunner()
-        result = runner.invoke(chat_cli.app, ["--help"])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Click", result.output)
+class ConfigTests(unittest.TestCase):
+    def test_build_config_respects_no_transcript_and_no_stream(self):
+        args = chat_cli.parse_args([
+            "--endpoint",
+            "http://x",
+            "--model",
+            "m",
+            "--no-transcript",
+            "--no-stream",
+        ])
+        cfg = chat_cli.build_config(args)
+        self.assertIsNone(cfg.transcript_path)
+        self.assertFalse(cfg.stream)
 
 
 if __name__ == "__main__":

@@ -1,64 +1,80 @@
-# Ollama Pro CLI (Click-powered)
+# Ollama CLI Chat (Interceptable)
 
-A production-focused CLI chat app for Ollama that uses **Click** (a mature open-source CLI framework) plus a plugin pipeline to intercept and rewrite prompts before they are sent.
+This repo now contains a production-ready Python CLI chat client for an Ollama endpoint on your LAN, with a **first-class prompt interception layer** so you can inspect and mutate payloads before they are sent.
 
-## Install
+## Why this approach
+
+Open-source UIs/CLIs exist, but most hide request construction inside framework callbacks, making prompt interception awkward. This tool keeps interception explicit and easy:
+
+- Payload is assembled in one place.
+- `intercept_payload(payload)` is called on every turn.
+- You can change model, messages, options, routing, tags, etc. before the HTTP request.
+
+## Files
+
+- `chat_cli.py` — interactive CLI chat app.
+- `interceptor_example.py` — example hook you can customize.
+
+## Quick start
 
 ```bash
-python3 -m pip install -r requirements.txt
-```
-
-## Run
-
-```bash
-python3 chat_cli.py chat \
+python3 chat_cli.py \
   --endpoint http://192.168.1.25:11434/api/chat \
-  --model llama3.1 \
-  --interceptor interceptor_example.py
+  --model llama3.1
 ```
 
-## Why this is better
+Optional environment variables:
 
-- Built on **Click** rather than hand-rolled argparse/input loops
-- Structured command model (`chat` command + typed options + envvar support)
-- Streaming and non-streaming responses
-- Retries with backoff for transient failures
-- Interceptor lifecycle:
-  - `pre_send(payload, context)`
-  - `post_receive(response_json, context)`
-- Backward compatibility with legacy `intercept_payload(payload)`
+- `OLLAMA_ENDPOINT`
+- `OLLAMA_MODEL`
+- `OLLAMA_TIMEOUT`
+- `OLLAMA_INTERCEPTOR`
+- `OLLAMA_SYSTEM_PROMPT`
+- `OLLAMA_TRANSCRIPT`
 
-## Interceptor API
+## Interception API
 
-Create a Python file and pass it with `--interceptor` (repeatable):
-
-```python
-def pre_send(payload: dict, context) -> dict:
-    return payload
-
-def post_receive(response_json: dict, context) -> dict:
-    return response_json
-```
-
-Legacy compatibility:
+Point `--interceptor` at a Python file that defines:
 
 ```python
 def intercept_payload(payload: dict) -> dict:
+    # modify payload
     return payload
 ```
 
-## REPL commands
+`payload` starts as:
+
+```json
+{
+  "model": "llama3.1",
+  "messages": [
+    {"role": "system", "content": "..."},
+    {"role": "user", "content": "..."}
+  ],
+  "stream": false
+}
+```
+
+You can:
+
+- Rewrite or filter prompts.
+- Insert policy/system messages.
+- Redact secrets before send.
+- Adjust `model`/`options` dynamically.
+
+## CLI commands
+
+Inside the REPL:
 
 - `/help`
 - `/history`
-- `/system <prompt>`
-- `/model <name>`
 - `/pop`
+- `/system <prompt>`
 - `/save [path]`
 - `/quit`
 
 ## Notes
 
-- Transcript log defaults to `chat_transcript.jsonl`
-- Disable transcript logging with `--no-transcript`
-- Environment variables supported: `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT`, `OLLAMA_RETRIES`, `OLLAMA_RETRY_BACKOFF`, `OLLAMA_SYSTEM_PROMPT`, `OLLAMA_TRANSCRIPT`
+- Uses the Ollama `/api/chat` endpoint.
+- Transcript logging defaults to `chat_transcript.jsonl` (disable with `--no-transcript`).
+- Works with any Ollama-reachable host on your local network.
