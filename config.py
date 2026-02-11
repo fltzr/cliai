@@ -39,6 +39,8 @@ class Config:
     stream: bool = True
     profile_name: str = "default"
     redact_terms: dict = field(default_factory=dict)
+    allowed_hosts: list = field(default_factory=list)
+    enforce_allowlist: bool = False
 
     def display_endpoint(self) -> str:
         """Return a display-safe version of the endpoint."""
@@ -101,6 +103,16 @@ redact:
   #   "acme-corp": "[COMPANY]"
   #   "Project Falcon": "[PROJECT]"
   #   "prod-west-2": "[CLUSTER_1]"
+
+# Security: network-level controls for outbound connections.
+security:
+  enforce_allowlist: false
+  allowed_hosts: []
+  # Example (uncomment and set enforce_allowlist: true):
+  #   - "localhost"
+  #   - "api.openai.com"
+  #   - "*.groq.com"
+  #   - "192.168.1.0/24"
 """
 
 
@@ -168,6 +180,16 @@ def _apply_env_vars(config: dict) -> dict:
                 val = val.lower() in ("true", "1", "yes")
             config[config_key] = val
 
+    # Comma-separated allowed hosts
+    allowed = os.environ.get("CLIAI_ALLOWED_HOSTS")
+    if allowed is not None:
+        config["allowed_hosts"] = [h.strip() for h in allowed.split(",") if h.strip()]
+
+    # Enforce allowlist toggle
+    enforce = os.environ.get("CLIAI_ENFORCE_ALLOWLIST")
+    if enforce is not None:
+        config["enforce_allowlist"] = enforce.lower() in ("true", "1", "yes")
+
     return config
 
 
@@ -218,6 +240,13 @@ def load_config(
     # Extract redact terms from global YAML config (not per-profile)
     redact_config = yaml_data.get("redact", {})
     config_dict["redact_terms"] = redact_config.get("terms", {}) or {}
+
+    # Extract security settings from global YAML config
+    security_config = yaml_data.get("security", {})
+    if security_config.get("allowed_hosts"):
+        config_dict["allowed_hosts"] = security_config["allowed_hosts"]
+    if "enforce_allowlist" in security_config:
+        config_dict["enforce_allowlist"] = bool(security_config["enforce_allowlist"])
 
     # Build config, filtering out unknown keys
     valid_keys = {f.name for f in Config.__dataclass_fields__.values()}

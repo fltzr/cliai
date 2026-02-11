@@ -121,6 +121,47 @@ python chat_cli.py config --init
 python chat_cli.py sessions
 ```
 
+## Security
+
+CLIAI uses **defense in depth** to control where your data goes:
+
+### Host Allowlisting
+
+Restrict outbound connections to specific hosts. Add to `config.yaml`:
+
+```yaml
+security:
+  enforce_allowlist: true
+  allowed_hosts:
+    - "localhost"
+    - "api.openai.com"
+    - "*.groq.com"          # wildcard subdomains
+    - "192.168.1.0/24"      # CIDR ranges
+```
+
+Or via environment variables:
+
+```bash
+export CLIAI_ENFORCE_ALLOWLIST=true
+export CLIAI_ALLOWED_HOSTS="localhost,api.openai.com"
+```
+
+When enabled, any request to a host not in the list is **blocked before data leaves the process**.
+
+### Docker Deployment
+
+For OS-level network isolation as a second layer:
+
+```bash
+# Build and run
+docker compose up --build
+
+# Or run directly with network restrictions
+docker run -it --network=none cliai chat -e http://host.docker.internal:11434/v1
+```
+
+The included `docker-compose.yaml` provides DNS control, resource limits, and persistent volumes.
+
 ## Running Tests
 
 ```bash

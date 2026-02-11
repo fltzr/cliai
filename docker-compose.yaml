@@ -1,0 +1,54 @@
+services:
+  cliai:
+    build: .
+    container_name: cliai
+    stdin_open: true    # Required for interactive CLI
+    tty: true           # Required for Rich TUI rendering
+
+    # ── Network Security ───────────────────────────────────
+    # Option 1: No network at all (fully air-gapped, for local Ollama via host)
+    # network_mode: "none"
+
+    # Option 2: Custom network with DNS control (recommended)
+    networks:
+      - cliai-net
+
+    # Restrict DNS to trusted resolvers only
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+    # ── Environment ────────────────────────────────────────
+    environment:
+      # Enforce the allowlist inside the container
+      - CLIAI_ENFORCE_ALLOWLIST=true
+      # Comma-separated list of allowed hosts
+      - CLIAI_ALLOWED_HOSTS=localhost,api.openai.com,api.groq.com
+      # Override endpoint/key as needed:
+      # - CLIAI_ENDPOINT=https://api.openai.com/v1
+      # - CLIAI_API_KEY=sk-...
+
+    # ── Persistence ────────────────────────────────────────
+    volumes:
+      - cliai-config:/home/cliai/.config/cliai
+      - cliai-data:/home/cliai/.local/share/cliai
+
+    # ── Resource Limits ────────────────────────────────────
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+networks:
+  cliai-net:
+    driver: bridge
+    # To add iptables-level egress rules, configure the network externally:
+    #   docker network create --driver bridge \
+    #     --opt com.docker.network.bridge.enable_ip_masquerade=true \
+    #     cliai-net
+    # Then add iptables rules to restrict egress to specific IPs.
+
+volumes:
+  cliai-config:
+  cliai-data:

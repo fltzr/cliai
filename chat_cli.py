@@ -23,6 +23,7 @@ from session import ChatSession, save_exchange
 from ui import ChatUI
 from commands import CommandHandler, parse_command
 from redactor import Redactor
+from network import validate_endpoint, BlockedHostError
 
 app = typer.Typer(
     name="cliai",
@@ -94,6 +95,15 @@ def chat(
 
     # Load config
     config = load_config(profile=profile, cli_overrides=cli_overrides)
+
+    # Validate endpoint against allowlist at startup
+    if config.enforce_allowlist:
+        try:
+            url = config.endpoint.rstrip("/") + "/chat/completions"
+            validate_endpoint(url, config.allowed_hosts, config.enforce_allowlist)
+        except BlockedHostError as e:
+            typer.echo(f"\n✗ Security error: {e}", err=True)
+            raise typer.Exit(code=1)
 
     # Initialize components
     client = ChatClient(config)

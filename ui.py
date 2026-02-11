@@ -46,6 +46,9 @@ class ChatUI:
         if self.config.api_key:
             info_table.add_row("API Key", self.config.display_key())
         info_table.add_row("Streaming", "✓" if self.config.stream else "✗")
+        if self.config.enforce_allowlist:
+            hosts = ", ".join(self.config.allowed_hosts) if self.config.allowed_hosts else "(none)"
+            info_table.add_row("🔒 Allowlist", hosts)
 
         panel = Panel(
             info_table,

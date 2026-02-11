@@ -13,6 +13,7 @@ from typing import Generator, Optional
 import httpx
 
 from config import Config
+from network import validate_endpoint, BlockedHostError
 
 
 # Retryable HTTP status codes
@@ -58,6 +59,10 @@ class ChatClient:
             write=10.0,
             pool=10.0,
         )
+
+        # Network security
+        self._allowed_hosts = config.allowed_hosts
+        self._enforce_allowlist = config.enforce_allowlist
 
     def _build_payload(
         self,
@@ -150,6 +155,13 @@ class ChatClient:
             temperature=temperature, max_tokens=max_tokens,
         )
         url = f"{self._base_url}/chat/completions"
+
+        # Network security gate
+        try:
+            validate_endpoint(url, self._allowed_hosts, self._enforce_allowlist)
+        except BlockedHostError as e:
+            yield ChatChunk(error=str(e))
+            return
 
         last_error = None
         for attempt in range(MAX_RETRIES):
@@ -271,6 +283,12 @@ class ChatClient:
             temperature=temperature, max_tokens=max_tokens,
         )
         url = f"{self._base_url}/chat/completions"
+
+        # Network security gate
+        try:
+            validate_endpoint(url, self._allowed_hosts, self._enforce_allowlist)
+        except BlockedHostError as e:
+            return ChatChunk(error=str(e))
 
         last_error = None
         for attempt in range(MAX_RETRIES):

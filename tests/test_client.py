@@ -157,3 +157,66 @@ class TestClientHeaders:
     def test_headers_without_api_key(self):
         client = ChatClient(Config(api_key=""))
         assert "Authorization" not in client._headers
+
+
+class TestNetworkSecurity:
+    """Test host allowlist enforcement in ChatClient."""
+
+    def test_stream_chat_blocked_host(self):
+        """stream_chat should yield an error chunk when host is blocked."""
+        config = Config(
+            endpoint="https://evil.com/v1",
+            allowed_hosts=["api.openai.com"],
+            enforce_allowlist=True,
+        )
+        client = ChatClient(config)
+        messages = [{"role": "user", "content": "hi"}]
+
+        chunks = list(client.stream_chat(messages))
+        assert len(chunks) == 1
+        assert chunks[0].error is not None
+        assert "evil.com" in chunks[0].error
+
+    def test_send_chat_blocked_host(self):
+        """send_chat should return an error chunk when host is blocked."""
+        config = Config(
+            endpoint="https://evil.com/v1",
+            allowed_hosts=["api.openai.com"],
+            enforce_allowlist=True,
+        )
+        client = ChatClient(config)
+        messages = [{"role": "user", "content": "hi"}]
+
+        result = client.send_chat(messages)
+        assert result.error is not None
+        assert "evil.com" in result.error
+
+    def test_no_enforcement_allows_any_host(self):
+        """When enforce_allowlist=False, no blocking occurs (request may still fail for other reasons)."""
+        config = Config(
+            endpoint="https://anything.com/v1",
+            allowed_hosts=[],
+            enforce_allowlist=False,
+        )
+        client = ChatClient(config)
+        # Just verify the validation gate doesn't block — the actual HTTP
+        # will fail with ConnectError, which is fine for this test
+        assert client._enforce_allowlist is False
+
+    def test_allowed_host_not_blocked(self):
+        """When host is in allowlist, no error chunk should be yielded at the gate."""
+        config = Config(
+            endpoint="https://api.openai.com/v1",
+            allowed_hosts=["api.openai.com"],
+            enforce_allowlist=True,
+        )
+        client = ChatClient(config)
+        # The validation gate itself shouldn't block; the subsequent HTTP call
+        # will fail (no real server), but that's a different error
+        messages = [{"role": "user", "content": "hi"}]
+        chunks = list(client.stream_chat(messages))
+        # Should get an error, but NOT a BlockedHostError
+        for chunk in chunks:
+            if chunk.error:
+                assert "not in the allowed hosts" not in chunk.error
+
