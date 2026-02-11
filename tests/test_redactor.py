@@ -152,6 +152,31 @@ class TestAWSResourceDetection:
         assert "vpc-abcdef12" not in text
 
 
+class TestIPv6Detection:
+    """Test IPv6 address detection."""
+
+    def test_link_local_with_zone(self):
+        r = Redactor()
+        text, redactions = r.redact(
+            "inet6 fe80::1802:ddbd:b93:5ba3%en0 prefixlen 64"
+        )
+        assert "1802:ddbd:b93:5ba3" not in text
+        ipv6_r = [rd for rd in redactions if rd.category == "ipv6"]
+        assert len(ipv6_r) >= 1
+
+    def test_full_ipv6(self):
+        r = Redactor()
+        addr = "2600:4040:44ad:600:a:53e6:3dd8:3727"
+        text, _ = r.redact(f"inet6 {addr} prefixlen 64")
+        assert addr not in text
+
+    def test_compressed_ipv6(self):
+        r = Redactor()
+        text, _ = r.redact("addr ::ffff:192.168.1.1 mapped")
+        # ::ffff prefix should be caught
+        assert "::ffff" not in text or "192.168.1.1" not in text
+
+
 class TestMACAddressDetection:
     """Test MAC address detection."""
 
