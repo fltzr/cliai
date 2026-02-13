@@ -729,9 +729,10 @@ class TestEntropyDetection:
     """Test entropy-based secret detection."""
 
     def test_high_entropy_hex_token(self):
-        """Random hex strings of sufficient length should be flagged."""
+        """Random mixed-charset strings of sufficient length should be flagged."""
         r = Redactor(ner_enabled=False)
-        token = "a3f7b2c9d1e8f4a6b0c5d2e7f3a9b1c8"  # 32-char random hex
+        # Not pure hex so regex hex_string won't catch it, but high entropy
+        token = "a3F7b2C9d1E8f4A6b0C5d2E7f3A9b1Z8"  # 32-char mixed with Z
         text, redactions = r.redact(f"My token is {token}")
         assert token not in text
         entropy_r = [rd for rd in redactions if rd.category == "high_entropy"]
