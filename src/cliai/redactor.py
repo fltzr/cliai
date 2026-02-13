@@ -52,6 +52,10 @@ class Redactor:
         """
         redactions: list[Redaction] = []
 
+        #####
+        ## Gather all redactions first before applying:
+        #####
+
         # Phase 0: Re-apply any previously seen mappings
         for original, placeholder in self._mapping.items():
             if original in text:
@@ -78,12 +82,16 @@ class Redactor:
                 placeholder = self._get_or_create_placeholder(value, category)
                 redactions.append(Redaction(value, placeholder, category))
 
-        # Apply redactions to text (longest first to avoid partial replacements)
+        #####
+        ## Apply all redactions, longest first to avoid partial replacements
+        #####
         redacted_text = text
         for r in sorted(redactions, key=lambda x: len(x.original), reverse=True):
             redacted_text = redacted_text.replace(r.original, r.placeholder)
 
-        # Deduplicate redaction list (same original may appear multiple times)
+        #####
+        ## Deduplicate redaction list (same original may appear multiple times)
+        #####
         seen = set()
         unique_redactions = []
         for r in redactions:
